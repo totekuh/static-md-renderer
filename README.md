@@ -1,6 +1,8 @@
 # Static Markdown Renderer
 
-This repository contains the setup for `static-md-renderer`, a Dockerized environment for a Jekyll blog. It's designed to facilitate the development of static Markdown-based websites, offering a live-reloading feature for real-time content updates.
+This repository contains the setup for `static-md-renderer`, a Dockerized environment for a Jekyll blog. 
+
+It's designed to rapidly deploy a Markdown-based static website, offering a live-reloading feature for real-time content updates.
 
 ## Prerequisites
 
