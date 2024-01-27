@@ -1,0 +1,17 @@
+version: '3.8'
+
+services:
+  jekyll:
+    build: .
+    container_name: static-md-renderer
+    hostname: static-md-renderer
+    volumes:
+      - ${LOCAL_PAGES_DIRECTORY}:/usr/src/app/pages
+      - jekyll_cache:/usr/local/bundle
+    ports:
+      - "${HOST_PORT}:${CONTAINER_PORT}"
+    env_file:
+      - docker.env
+
+volumes:
+  jekyll_cache:
