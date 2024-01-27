@@ -10,10 +10,20 @@ def escape_markdown(text):
     return text
 
 def parse_existing_file(filename):
+    # This needs to be updated to handle the new structure with agents
     with open(filename, 'r') as f:
         content = f.read()
-    existing_entries = re.findall(r'\*\*(.*?)\*\* - \[(.*?)\]\((.*?)\)', content)
-    return {title: {'url': url} for title, _, url in existing_entries}
+    existing_entries = re.findall(r'## Agent: (.*?)\n(.*?)\n', content, re.DOTALL)
+    parsed_entries = {}
+    for agent, entries in existing_entries:
+        parsed_entries[agent] = {}
+        titles_urls = re.findall(r'\*\*(.*?)\*\* - \[(.*?)\]\((.*?)\)', entries)
+        for title, _, url in titles_urls:
+            domain = url.split("://")[1].split("/")[0]
+            if domain not in parsed_entries[agent]:
+                parsed_entries[agent][domain] = []
+            parsed_entries[agent][domain].append({'title': title, 'url': url})
+    return parsed_entries
 
 def parse_new_entries(input_content):
     entry_pattern = re.compile(
@@ -33,34 +43,58 @@ def parse_new_entries(input_content):
             continue
 
         title = escape_markdown(title.strip())
-        new_entries[title] = {'url': url.strip()}
+        domain = url.split("://")[1].split("/")[0]
+        agent = agent.strip()
+        if agent not in new_entries:
+            new_entries[agent] = {}
+        if domain not in new_entries[agent]:
+            new_entries[agent][domain] = []
+        new_entries[agent][domain].append({'title': title, 'url': url.strip()})
     return new_entries
 
 def combine_and_dedupe(existing_entries, new_entries):
-    for title, data in new_entries.items():
-        if title not in existing_entries:
-            existing_entries[title] = data
+    for agent, domains in new_entries.items():
+        if agent not in existing_entries:
+            existing_entries[agent] = domains
+        else:
+            for domain, entries in domains.items():
+                if domain not in existing_entries[agent]:
+                    existing_entries[agent][domain] = entries
+                else:
+                    existing_titles = {entry['title'] for entry in existing_entries[agent][domain]}
+                    for entry in entries:
+                        if entry['title'] not in existing_titles:
+                            existing_entries[agent][domain].append(entry)
     return existing_entries
+
 
 def store_to_markdown(combined_data, output_dir, date_str):
     filename = os.path.join(output_dir, f"{date_str}.md")
 
-    markdown_content = ""
-    for title, data in combined_data.items():
-        markdown_content += f"**{title}** - [{data['url']}]({data['url']})\n\n"
-
-    with open(filename, 'w') as f:
-        header = f"""---
+    markdown_content = f"""---
 layout: post
 title: "{date_str} Huginn RSS Report"
 categories: huginn update
----""" + """
+---
+""" + """
 * auto-gen TOC:
 {:toc}
-        """
-        f.write(header)
+
+"""
+
+    # Sort the combined data by agent and then domain
+    for agent in sorted(combined_data.keys()):
+        entries_per_agent = sum(len(entries) for entries in combined_data[agent].values())
+        markdown_content += f"## Agent: {agent} ({entries_per_agent} entries)\n"
+        for domain in sorted(combined_data[agent].keys()):
+            markdown_content += f"### Domain: {domain}\n"
+            for entry in sorted(combined_data[agent][domain], key=lambda x: x['title']):
+                markdown_content += f"**{entry['title']}** - [{entry['url']}]({entry['url']})\n\n"
+
+    with open(filename, 'w') as f:
         f.write(markdown_content)
         print(f"Data saved to {filename}")
+
 
 if __name__ == "__main__":
     if len(sys.argv) != 3:
