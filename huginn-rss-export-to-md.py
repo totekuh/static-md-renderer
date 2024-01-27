@@ -9,21 +9,32 @@ def escape_markdown(text):
         text = text.replace(char, "\\" + char)
     return text
 
+
 def parse_existing_file(filename):
-    # This needs to be updated to handle the new structure with agents
     with open(filename, 'r') as f:
         content = f.read()
-    existing_entries = re.findall(r'## Agent: (.*?)\n(.*?)\n', content, re.DOTALL)
+
+    # Find sections that start with '## Agent:'
+    agent_sections = re.findall(r'## Agent: (.*?) \(\d+ entries\)\n(.*?)\n(?=## Agent:|$)', content, re.DOTALL)
+
     parsed_entries = {}
-    for agent, entries in existing_entries:
-        parsed_entries[agent] = {}
-        titles_urls = re.findall(r'\*\*(.*?)\*\* - \[(.*?)\]\((.*?)\)', entries)
+    for agent, entries_block in agent_sections:
+        # Remove the number of entries from the agent line
+        agent = agent.strip()
+
+        # Find all titles within this agent's section
+        titles_urls = re.findall(r'\*\*(.*?)\*\* - \[(.*?)\]\((.*?)\)', entries_block)
+
         for title, _, url in titles_urls:
             domain = url.split("://")[1].split("/")[0]
+            if agent not in parsed_entries:
+                parsed_entries[agent] = {}
             if domain not in parsed_entries[agent]:
                 parsed_entries[agent][domain] = []
             parsed_entries[agent][domain].append({'title': title, 'url': url})
+
     return parsed_entries
+
 
 def parse_new_entries(input_content):
     entry_pattern = re.compile(
@@ -89,7 +100,12 @@ categories: huginn update
         for domain in sorted(combined_data[agent].keys()):
             markdown_content += f"### Domain: {domain}\n"
             for entry in sorted(combined_data[agent][domain], key=lambda x: x['title']):
-                markdown_content += f"**{entry['title']}** - [{entry['url']}]({entry['url']})\n\n"
+                entry_str = f"**{entry['title']}** - [{entry['url']}]({entry['url']})\n\n"
+                if entry_str in markdown_content:
+                    print(f"Duplicate detected: {entry_str}")
+                    continue
+                else:
+                    markdown_content += entry_str
 
     with open(filename, 'w') as f:
         f.write(markdown_content)
