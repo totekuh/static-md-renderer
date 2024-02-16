@@ -1,6 +1,6 @@
 ---
 layout: post
-title:  "28.01.2024 Cryptography Chronicles"
+title:  "Cryptography Chronicles"
 date:   2024-01-28 12:00:00 +0000
 categories: cryptography thoughts
 ---

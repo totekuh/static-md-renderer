@@ -1,6 +1,7 @@
 ---
 layout: post
-title:  "27.01.2024 My Page"
+title:  "My Page"
+date:   2024-01-27 12:00:00 +0000
 categories: jekyll update
 ---
 
