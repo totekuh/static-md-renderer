@@ -6,7 +6,7 @@ services:
     container_name: static-md-renderer
     hostname: static-md-renderer
     volumes:
-      - ${LOCAL_PAGES_DIRECTORY}:/usr/src/app/pages
+      - ${LOCAL_PAGES_DIRECTORY}:/usr/src/app/_posts
       - jekyll_cache:/usr/local/bundle
     ports:
       - "${HOST_PORT}:${CONTAINER_PORT}"
