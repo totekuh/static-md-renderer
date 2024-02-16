@@ -1,7 +1,9 @@
+#!/usr/bin/env python3
 import sys
 import re
 from datetime import datetime
 import os
+
 
 def escape_markdown(text):
     markdown_chars = "\\`*_{}[]()#+-.!|"
@@ -63,6 +65,7 @@ def parse_new_entries(input_content):
         new_entries[agent][domain].append({'title': title, 'url': url.strip()})
     return new_entries
 
+
 def combine_and_dedupe(existing_entries, new_entries):
     for agent, domains in new_entries.items():
         if agent not in existing_entries:
@@ -80,12 +83,13 @@ def combine_and_dedupe(existing_entries, new_entries):
 
 
 def store_to_markdown(combined_data, output_dir, date_str):
-    filename = os.path.join(output_dir, f"{date_str}.md")
+    filename = os.path.join(output_dir, f"{date_str}-Huginn-Data-Feed.md")
 
     markdown_content = f"""---
 layout: post
-title: "{date_str} Huginn RSS Report"
+title: Huginn RSS Report
 categories: huginn update
+date: {date_str} 
 ---
 """ + """
 * auto-gen TOC:
@@ -112,13 +116,30 @@ categories: huginn update
         print(f"Data saved to {filename}")
 
 
-if __name__ == "__main__":
-    if len(sys.argv) != 3:
-        print("Usage: {} input_file output_dir".format(sys.argv[0]))
-        sys.exit(1)
+def get_arguments():
+    from argparse import ArgumentParser
 
-    input_file = sys.argv[1]
-    output_dir = sys.argv[2]
+    parser = ArgumentParser("Convert Hugin RSS Feads to Markdown")
+    parser.add_argument("-i",
+                        '--input',
+                        dest='input',
+                        required=True,
+                        type=str,
+                        help='Specify the input file produced by Huginn')
+    parser.add_argument("-od",
+                        '--output-dir',
+                        dest='output_dir',
+                        required=True,
+                        type=str,
+                        help='Specify the output directory to write converted files to')
+    return parser.parse_args()
+
+
+def main():
+    options = get_arguments()
+
+    input_file = options.input
+    output_dir = options.output_dir
 
     if not os.path.exists(input_file):
         print("Input file does not exist")
@@ -141,3 +162,7 @@ if __name__ == "__main__":
 
     combined_data = combine_and_dedupe(existing_entries, new_entries)
     store_to_markdown(combined_data, output_dir, datetime.now().strftime('%Y-%m-%d'))
+
+
+if __name__ == "__main__":
+    main()
