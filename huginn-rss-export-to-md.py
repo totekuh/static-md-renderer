@@ -94,7 +94,7 @@ def combine_and_dedupe(existing_entries, new_entries):
 
 
 def store_to_markdown(combined_data, output_dir, date_str):
-    filename = os.path.join(output_dir, f"{date_str}.md")
+    filename = os.path.join(output_dir, f"{date_str}-Huginn-Feed.md")
 
     markdown_content = f"""---
 layout: post
