@@ -1,7 +1,5 @@
 ---
-title: /
-layout: home
-permalink: /
+layout: default
 ---
 
 # Hey Traveller
