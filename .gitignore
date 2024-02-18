@@ -2,3 +2,4 @@ app/.jekyll-cache
 app/_site
 .idea
 pages/*
+docker.env

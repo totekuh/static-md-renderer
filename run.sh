@@ -6,4 +6,4 @@
 # Ensure script is executable: chmod +x run.sh
 # Run the script: ./run.sh
 
-docker-compose --env-file docker.env up --build --force-recreate
+docker-compose --env-file docker.env up --build --force-recreate -d
