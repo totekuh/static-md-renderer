@@ -4,7 +4,6 @@ import re
 from datetime import datetime
 import os
 
-
 def escape_markdown(text):
     markdown_chars = "\\`*_{}[]()#+-.!|"
     for char in markdown_chars:
@@ -12,30 +11,76 @@ def escape_markdown(text):
     return text
 
 
-def parse_existing_file(filename):
-    with open(filename, 'r') as f:
-        content = f.read()
+class CyberfeedEntry:
+    def __init__(self, date_published: datetime,
+                 agent_name: str,
+                 title: str,
+                 url: str):
+        def error_if_empty(elem_name, elem_value):
+            if not elem_value:
+                print(f"[!] Invalid {elem_name}: {elem_value}")
+                sys.exit(1)
 
-    # Find sections that start with '## Agent:'
-    agent_sections = re.findall(r'## Agent: (.*?) \(\d+ entries\)\n(.*?)\n(?=## Agent:|$)', content, re.DOTALL)
+        error_if_empty(elem_name="date_published", elem_value=date_published)
+        error_if_empty(elem_name="agent_name", elem_value=agent_name)
+        error_if_empty(elem_name="title", elem_value=title)
+        error_if_empty(elem_name="url", elem_value=url)
 
-    parsed_entries = {}
-    for agent, entries_block in agent_sections:
-        # Remove the number of entries from the agent line
-        agent = agent.strip()
+        self.date_published = date_published
+        self.agent_name = agent_name
+        self.title = title
+        self.url = url
 
-        # Find all titles within this agent's section
-        titles_urls = re.findall(r'\*\*(.*?)\*\* - \[(.*?)\]\((.*?)\)', entries_block)
+        self.domain = url.split("://")[1].split("/")[0]
 
-        for title, _, url in titles_urls:
-            domain = url.split("://")[1].split("/")[0]
-            if agent not in parsed_entries:
-                parsed_entries[agent] = {}
-            if domain not in parsed_entries[agent]:
-                parsed_entries[agent][domain] = []
-            parsed_entries[agent][domain].append({'title': title, 'url': url})
+    def __eq__(self, other):
+        if not isinstance(other, CyberfeedEntry):
+            # Don't attempt to compare against unrelated types
+            return NotImplemented
 
-    return parsed_entries
+        return (self.agent_name == other.agent_name and
+                self.title == other.title and
+                self.url == other.url)
+
+    def to_markdown(self):
+        return (f"**{self.title}** - "
+                f"[{self.url}]({self.url}) - "
+                f"[{self.date_published.strftime('%H:%M:%S')}]")
+
+class CyberfeedPage:
+    HUGINN_REPORT_FILE_SUFFIX = "-Huginn-Feed.md"
+
+    def __init__(self, file_name: str):
+        self.file_name = file_name
+        self.date_str = self.file_name.replace(CyberfeedPage.HUGINN_REPORT_FILE_SUFFIX, "")
+
+    def read_entries(self) -> list:
+        if not os.path.exists(self.file_name):
+            return []
+        with open(self.file_name, 'r') as f:
+            content = f.read()
+
+        # Find sections that start with '## Agent:'
+        agent_sections = re.findall(r'## Agent: (.*?) \(\d+ entries\)\n(.*?)\n(?=## Agent:|$)', content, re.DOTALL)
+
+        parsed_entries = []
+        for agent, entries_block in agent_sections:
+            # Remove the number of entries from the agent line
+            agent = agent.strip()
+
+            # Find all titles within this agent's section
+            titles_urls = re.findall(r'\*\*(.*?)\*\* - \[(.*?)\]\((.*?)\) - - \[(.*?)\]', entries_block)
+
+            for title, _, url, time_published_str in titles_urls:
+                parsed_entries.append(
+                    CyberfeedEntry(date_published=datetime.strptime(
+                        f"{self.date_str}{time_published_str}", '%Y-%m-%d %H:%M:%S'),
+                        agent_name=agent,
+                        title=title,
+                        url=url))
+
+        return parsed_entries
+
 
 
 def parse_new_entries(input_content):
@@ -45,35 +90,21 @@ def parse_new_entries(input_content):
         else:
             return content.split(tag)[1].split(tag)[0].strip()
 
-    def validate_entry_elem(elem_name, elem_value):
-        if not elem_value:
-            print(f"[!] Invalid {elem_name}: {elem_value}")
-            sys.exit(1)
-
-    new_entries = {}
+    new_entries = []
     for line in input_content.split(os.linesep):
         if not line.startswith("- %DATE_PUBLISHED%"):
             print(f"[!] Invalid line: {line}")
         else:
-            date_published_str = extract_tag(tag="%DATE_PUBLISHED%", content=input_content)
-            agent = extract_tag(tag="%AGENT%", content=input_content)
-            title = extract_tag(tag="%TITLE%", content=input_content)
-            url = extract_tag(tag="%URL%", content=input_content)
+            cyberfeed_entry = CyberfeedEntry(date_published=
+            datetime.strptime(
+                extract_tag(tag="%DATE_PUBLISHED%", content=input_content),
+                '%Y-%m-%d %H:%M:%S %z'),
+                agent_name=extract_tag(tag="%AGENT_NAME%", content=input_content),
+                title=extract_tag(tag="%TITLE%", content=input_content),
+                url=extract_tag(tag="%URL%", content=input_content))
+            new_entries.append(cyberfeed_entry)
 
-            validate_entry_elem(elem_name="date", elem_value=date_published_str)
-            validate_entry_elem(elem_name="agent", elem_value=agent)
-            validate_entry_elem(elem_name="title", elem_value=title)
-            validate_entry_elem(elem_name="url", elem_value=url)
-
-            domain = url.split("://")[1].split("/")[0]
-
-            if agent not in new_entries:
-                new_entries[agent] = {}
-            if domain not in new_entries[agent]:
-                new_entries[agent][domain] = []
-            new_entries[agent][domain].append({'title': title, 'url': url.strip()})
-
-
+    print(f"[*] {len(new_entries)} new cyberfeed entries")
     return new_entries
 
 
@@ -94,7 +125,7 @@ def combine_and_dedupe(existing_entries, new_entries):
 
 
 def store_to_markdown(combined_data, output_dir, date_str):
-    filename = os.path.join(output_dir, f"{date_str}-Huginn-Feed.md")
+    filename = os.path.join(output_dir, f"{date_str}{HUGINN_REPORT_FILE_SUFFIX}")
 
     markdown_content = f"""---
 layout: post
@@ -125,6 +156,7 @@ date: {date_str}
     with open(filename, 'w') as f:
         f.write(markdown_content)
         print(f"Data saved to {filename}")
+
 
 def backup_file(file_path, base_dir):
     """
@@ -189,14 +221,17 @@ def main():
     with open(input_file, 'r') as f:
         input_content = f.read()
 
-
     new_entries = parse_new_entries(input_content)
-    existing_file = os.path.join(output_dir, f"{datetime.now().strftime('%Y-%m-%d')}.md")
+    existing_entries = []
 
-    if os.path.exists(existing_file):
-        existing_entries = parse_existing_file(existing_file)
-    else:
-        existing_entries = {}
+    for entry in new_entries:
+        date_str = entry.date_published.strftime('%Y-%m-%d')
+        print(f"[*] Parsed entry date: {date_str}")
+        existing_file = os.path.join(output_dir, f"{date_str}{CyberfeedPage.HUGINN_REPORT_FILE_SUFFIX}")
+        page = CyberfeedPage(file_name=existing_file)
+
+        existing_entries = page.read_entries()
+
 
     combined_data = combine_and_dedupe(existing_entries, new_entries)
     store_to_markdown(combined_data, output_dir, datetime.now().strftime('%Y-%m-%d'))
